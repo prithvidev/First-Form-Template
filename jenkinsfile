@@ -1,0 +1,69 @@
+pipeline {
+    agent any
+    stages {
+        stage('Pulling the code') {
+            steps {
+                withCredentials([string(credentialsId: 'test-sec', variable: 'SECRET_TEXT')]) {
+                    sh 'rm -rf First-Form-Template || true'
+                    sh 'git clone https://github.com/prithvidev/First-Form-Template.git'
+                    sh 'hostname'
+                    echo " Pulling the code is completed"
+            }
+        }
+        }
+        
+        stage('Making the changes') {
+            steps {
+                sh 'pwd'
+                sh '''
+                cd /var/lib/jenkins/workspace/nginx-deployment/First-Form-Template
+                pwd
+                cp /opt/First-Form-Template/*.html .
+                cp /opt/First-Form-Template/*.css .
+                date >> ./README.md
+                sh '''
+                sh 'echo "Making the changes is completed"'
+                
+        }
+        }
+        
+        stage('Pushing the updates to github') {
+            steps {
+                withCredentials([string(credentialsId: 'test-sec', variable: 'SECRET_TEXT')]) {
+                    sh '''
+                    cd /var/lib/jenkins/workspace/nginx-deployment/First-Form-Template
+                    git add .
+                    git commit -m "Updating changes"
+                    git push https://prithvidev:${SECRET_TEXT}@github.com/prithvidev/First-Form-Template.git
+                    sh '''
+                }
+        }
+        }
+        
+        stage('Deploying on Nginx') {
+            steps {
+                sh '''
+                cd /var/lib/jenkins/workspace/nginx-deployment/First-Form-Template
+                cp ./* /var/www/mywebsite/
+                sudo nginx -t
+                sudo systemctl restart nginx
+                sudo systemctl status nginx
+                sh '''
+        }
+        }
+        
+        stage('Checking status for URL') {
+            steps {
+                sh '''
+                response=$(curl --connect-timeout 2 --max-time 2 -o /dev/null -s -w "%{http_code}" http://52.70.76.130/)
+                if [ "$response" -eq 200 ]; then
+                    echo "Status is 200 - Success"
+                else
+                    echo "Failed with status: $response"s
+                exit 1
+                fi
+                sh '''
+        }
+        }
+    }
+}
